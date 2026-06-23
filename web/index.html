@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kita-AIoT Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="background-effects">
+        <div class="glow glow-1"></div>
+        <div class="glow glow-2"></div>
+    </div>
+    
+    <div class="app-container">
+        <header class="glass-panel main-header">
+            <div class="logo">
+                <span class="logo-icon">⚡</span>
+                <h1>Kita-AIoT <span class="highlight">Monitor</span></h1>
+            </div>
+            <div class="header-stats">
+                <div class="stat-badge">
+                    <span class="stat-dot online"></span>
+                    <span id="online-count">0</span> 在线设备
+                </div>
+            </div>
+        </header>
+
+        <main class="dashboard-grid">
+            <!-- Devices Section -->
+            <section class="glass-panel devices-section">
+                <div class="section-header">
+                    <h2><span class="icon">📦</span> 边缘设备</h2>
+                    <button class="icon-btn" onclick="app.fetchData()" title="刷新">🔄</button>
+                </div>
+                <div class="devices-grid" id="devices-container">
+                    <!-- Devices will be injected here -->
+                    <div class="loading-spinner"></div>
+                </div>
+            </section>
+
+            <!-- Alarms Section -->
+            <section class="glass-panel alarms-section">
+                <div class="section-header">
+                    <h2><span class="icon">🚨</span> 实时告警</h2>
+                </div>
+                <div class="alarms-list" id="alarms-container">
+                    <!-- Alarms will be injected here -->
+                    <div class="loading-spinner"></div>
+                </div>
+            </section>
+
+            <!-- Work Orders Section -->
+            <section class="glass-panel work-orders-section">
+                <div class="section-header">
+                    <h2><span class="icon">📋</span> 工单追踪</h2>
+                </div>
+                <div class="work-orders-list" id="work-orders-container">
+                    <!-- Work orders will be injected here -->
+                    <div class="empty-state">暂无工单</div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Templates for JavaScript cloning -->
+    <template id="device-card-template">
+        <div class="device-card">
+            <div class="device-header">
+                <h3 class="device-name"></h3>
+                <span class="status-indicator"></span>
+            </div>
+            <div class="device-body">
+                <div class="device-meta">
+                    <span class="meta-icon">📍</span>
+                    <span class="location"></span>
+                </div>
+                <div class="device-metrics">
+                    <div class="metric">
+                        <span class="metric-label">温度</span>
+                        <span class="metric-value temp-value">--°C</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">电量</span>
+                        <div class="battery-bar-container">
+                            <div class="battery-bar"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="alarm-item-template">
+        <div class="alarm-item">
+            <div class="alarm-icon"></div>
+            <div class="alarm-content">
+                <div class="alarm-header">
+                    <span class="alarm-type"></span>
+                    <span class="alarm-time"></span>
+                </div>
+                <p class="alarm-message"></p>
+                <div class="alarm-device"></div>
+            </div>
+        </div>
+    </template>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

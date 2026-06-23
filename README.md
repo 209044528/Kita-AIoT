@@ -129,32 +129,32 @@ python -m venv .venv
 ### 2. 启动 FastAPI
 
 ```powershell
-.\.venv\Scripts\python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+.\.venv\Scripts\python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 ```
 
 启动后打开：
 
-- API 文档：http://localhost:8000/docs
-- 健康检查：http://localhost:8000/health
+- API 文档：http://localhost:8001/docs
+- 健康检查：http://localhost:8001/health
 
 ### 3. 调用三个智能体工具接口
 
 查询设备状态：
 
 ```powershell
-curl http://localhost:8000/api/v1/devices/device-001/status
+curl http://localhost:8001/api/v1/devices/device-001/status
 ```
 
 查询历史告警：
 
 ```powershell
-curl "http://localhost:8000/api/v1/devices/device-001/alarms?limit=5"
+curl "http://localhost:8001/api/v1/devices/device-001/alarms?limit=5"
 ```
 
 创建工单：
 
 ```powershell
-curl.exe -X POST http://localhost:8000/api/v1/work-orders `
+curl.exe -X POST http://localhost:8001/api/v1/work-orders `
   -H "Content-Type: application/json" `
   -d '{
     "device_id": "device-001",
@@ -169,7 +169,7 @@ curl.exe -X POST http://localhost:8000/api/v1/work-orders `
 诊断辅助接口：
 
 ```powershell
-curl.exe -X POST http://localhost:8000/api/v1/tools/device-diagnosis `
+curl.exe -X POST http://localhost:8001/api/v1/tools/device-diagnosis `
   -H "Content-Type: application/json" `
   -d '{
     "device_id": "device-001",
@@ -221,7 +221,7 @@ curl.exe -X POST http://localhost:8000/api/v1/tools/device-diagnosis `
 .\.venv\Scripts\python scripts/mqtt_alarm_simulator.py `
   --dry-run `
   --count 1 `
-  --post-url http://localhost:8000/api/v1/alarms/report
+  --post-url http://localhost:8001/api/v1/alarms/report
 ```
 
 示例 Payload：

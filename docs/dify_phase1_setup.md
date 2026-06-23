@@ -27,10 +27,10 @@
 
 | 工具名称 | Method | URL |
 | --- | --- | --- |
-| `get_device_status` | GET | `http://localhost:8000/api/v1/devices/{device_id}/status` |
-| `get_recent_alarms` | GET | `http://localhost:8000/api/v1/devices/{device_id}/alarms` |
-| `create_work_order` | POST | `http://localhost:8000/api/v1/work-orders` |
-| `device_diagnosis` | POST | `http://localhost:8000/api/v1/tools/device-diagnosis` |
+| `get_device_status` | GET | `http://localhost:8001/api/v1/devices/{device_id}/status` |
+| `get_recent_alarms` | GET | `http://localhost:8001/api/v1/devices/{device_id}/alarms` |
+| `create_work_order` | POST | `http://localhost:8001/api/v1/work-orders` |
+| `device_diagnosis` | POST | `http://localhost:8001/api/v1/tools/device-diagnosis` |
 
 前三个是第一阶段核心工具，`device_diagnosis` 是可选演示接口，用于快速展示“状态 + 告警 + 知识库式建议”的组合结果。
 

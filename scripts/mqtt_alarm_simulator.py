@@ -79,7 +79,7 @@ def main() -> None:
     parser.add_argument(
         "--post-url",
         default="",
-        help="Also POST payload to FastAPI, for example http://localhost:8000/api/v1/alarms/report",
+        help="Also POST payload to FastAPI, for example http://localhost:8001/api/v1/alarms/report",
     )
     args = parser.parse_args()
 
