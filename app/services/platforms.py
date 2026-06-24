@@ -1,6 +1,7 @@
-from typing import Any
 from time import perf_counter
+from typing import Any
 from uuid import uuid4
+import json
 
 import httpx
 
@@ -40,19 +41,43 @@ def call_dify_workflow(inputs: dict[str, Any], user: str = "kita-aiot") -> dict[
         raise RuntimeError("Dify API 未配置")
 
     url = f"{settings.DIFY_API_BASE_URL.rstrip('/')}/workflows/run"
+    normalized_inputs = inputs
+    if settings.DIFY_SERIALIZE_COMPLEX_INPUTS:
+        normalized_inputs = {
+            key: json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else value
+            for key, value in inputs.items()
+        }
     started = perf_counter()
     try:
         response = httpx.post(
             url,
             headers={"Authorization": f"Bearer {settings.DIFY_API_KEY}"},
-            json={"inputs": inputs, "response_mode": "blocking", "user": user},
-            timeout=60,
+            json={"inputs": normalized_inputs, "response_mode": "blocking", "user": user},
+            timeout=settings.DIFY_TIMEOUT_SECONDS,
         )
-        response.raise_for_status()
+        if (
+            response.status_code == 400
+            and not settings.DIFY_SERIALIZE_COMPLEX_INPUTS
+            and "must be a string" in response.text
+        ):
+            _write_call_log("dify", url, response.status_code, started, response.text[:1000])
+            normalized_inputs = {
+                key: json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else value
+                for key, value in inputs.items()
+            }
+            started = perf_counter()
+            response = httpx.post(
+                url,
+                headers={"Authorization": f"Bearer {settings.DIFY_API_KEY}"},
+                json={"inputs": normalized_inputs, "response_mode": "blocking", "user": user},
+                timeout=settings.DIFY_TIMEOUT_SECONDS,
+            )
+        if response.is_error:
+            raise RuntimeError(f"Dify API {response.status_code}: {response.text[:1000]}")
         _write_call_log("dify", url, response.status_code, started)
         return response.json()
     except Exception as exc:
-        status_code = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else 502
+        status_code = response.status_code if "response" in locals() else 502
         _write_call_log("dify", url, status_code, started, str(exc))
         raise
 

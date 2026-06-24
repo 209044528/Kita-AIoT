@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     DIFY_API_BASE_URL: Optional[str] = None
     DIFY_API_KEY: Optional[str] = None
     DIFY_WORKFLOW_ENABLED: bool = False
+    DIFY_TIMEOUT_SECONDS: int = 180
+    DIFY_SERIALIZE_COMPLEX_INPUTS: bool = False
 
     BAILIAN_API_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     BAILIAN_API_KEY: Optional[str] = None
