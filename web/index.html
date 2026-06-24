@@ -26,6 +26,10 @@
                     <span class="stat-dot online"></span>
                     <span id="online-count">0</span> 在线设备
                 </div>
+                <div class="stat-badge">
+                    <span>⚙️</span>
+                    <span id="workflow-count">0</span> 工作流
+                </div>
             </div>
         </header>
 
@@ -59,8 +63,16 @@
                     <h2><span class="icon">📋</span> 工单追踪</h2>
                 </div>
                 <div class="work-orders-list" id="work-orders-container">
-                    <!-- Work orders will be injected here -->
                     <div class="empty-state">暂无工单</div>
+                </div>
+            </section>
+
+            <section class="glass-panel workflows-section">
+                <div class="section-header">
+                    <h2><span class="icon">⚙️</span> 工作流执行</h2>
+                </div>
+                <div class="workflows-list" id="workflows-container">
+                    <div class="empty-state">暂无执行记录</div>
                 </div>
             </section>
         </main>
@@ -105,6 +117,16 @@
                 <p class="alarm-message"></p>
                 <div class="alarm-device"></div>
             </div>
+        </div>
+    </template>
+
+    <template id="record-item-template">
+        <div class="record-item">
+            <div>
+                <strong class="record-title"></strong>
+                <p class="record-meta"></p>
+            </div>
+            <span class="record-status"></span>
         </div>
     </template>
 

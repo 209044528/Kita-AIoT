@@ -4,14 +4,30 @@ from typing import Optional
 class Settings(BaseSettings):
     APP_NAME: str = "Kita-AIoT"
     APP_ENV: str = "dev"
-    
+
+    DATABASE_URL: str = "sqlite:///./kita_aiot.db"
+
     MQTT_HOST: str = "localhost"
     MQTT_PORT: int = 1883
     MQTT_TOPIC: str = "aiot/device/alarm"
-    
+    MQTT_ENABLED: bool = False
+    MQTT_USERNAME: Optional[str] = None
+    MQTT_PASSWORD: Optional[str] = None
+
+    MINIO_ENABLED: bool = False
+    MINIO_ENDPOINT: str = "localhost:9000"
+    MINIO_ACCESS_KEY: str = "minioadmin"
+    MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_SECURE: bool = False
+    MINIO_BUCKET: str = "device-documents"
+
     DIFY_API_BASE_URL: Optional[str] = None
     DIFY_API_KEY: Optional[str] = None
+    DIFY_WORKFLOW_ENABLED: bool = False
+
+    BAILIAN_API_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     BAILIAN_API_KEY: Optional[str] = None
+    BAILIAN_MODEL: str = "qwen-plus"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

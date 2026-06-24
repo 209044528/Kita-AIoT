@@ -1,0 +1,98 @@
+openapi: 3.0.3
+info:
+  title: Kita-AIoT Agent Tools
+  version: 0.3.0
+servers:
+  - url: http://host.docker.internal:8001/api/v1
+paths:
+  /devices/{device_id}/status:
+    get:
+      operationId: get_device_status
+      summary: 查询设备当前状态
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 设备状态
+  /devices/{device_id}/alarms:
+    get:
+      operationId: get_recent_alarms
+      summary: 查询设备最近告警
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: 告警列表
+  /devices/diagnosis:
+    post:
+      operationId: diagnose_device
+      summary: 根据设备状态和告警生成诊断建议
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_id, question]
+              properties:
+                device_id:
+                  type: string
+                question:
+                  type: string
+      responses:
+        "200":
+          description: 诊断结果
+  /work-orders/:
+    post:
+      operationId: create_work_order
+      summary: 创建运维工单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_id, title, reason, suggestion]
+              properties:
+                device_id:
+                  type: string
+                alarm_id:
+                  type: string
+                  nullable: true
+                title:
+                  type: string
+                reason:
+                  type: string
+                suggestion:
+                  type: string
+                priority:
+                  type: string
+                  default: P2
+      responses:
+        "201":
+          description: 工单创建结果
+  /documents/:
+    get:
+      operationId: list_device_documents
+      summary: 查询设备文档和图片元数据
+      parameters:
+        - name: device_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 文档列表

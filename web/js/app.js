@@ -3,13 +3,19 @@ class App {
         this.apiBase = '/api/v1';
         this.devicesContainer = document.getElementById('devices-container');
         this.alarmsContainer = document.getElementById('alarms-container');
+        this.workOrdersContainer = document.getElementById('work-orders-container');
+        this.workflowsContainer = document.getElementById('workflows-container');
         this.onlineCountEl = document.getElementById('online-count');
+        this.workflowCountEl = document.getElementById('workflow-count');
         
         this.deviceTemplate = document.getElementById('device-card-template');
         this.alarmTemplate = document.getElementById('alarm-item-template');
+        this.recordTemplate = document.getElementById('record-item-template');
         
         this.devices = [];
         this.alarms = [];
+        this.workOrders = [];
+        this.workflows = [];
         
         this.init();
     }
@@ -22,20 +28,20 @@ class App {
 
     async fetchData() {
         try {
-            // In a real app we'd fetch devices from an endpoint like /devices. 
-            // Currently backend doesn't have a list all devices endpoint, but we can fetch alarms which give us device ids, 
-            // or we know the 3 mock devices. Let's hardcode fetching the 3 known devices for the demo.
-            const deviceIds = ['device-001', 'device-002', 'device-003'];
-            const devicePromises = deviceIds.map(id => 
-                fetch(`${this.apiBase}/devices/${id}/status`).then(res => res.json()).catch(() => null)
-            );
-            
-            const devicesData = await Promise.all(devicePromises);
-            this.devices = devicesData.filter(d => d && !d.detail);
-            
-            const alarmsRes = await fetch(`${this.apiBase}/alarms/`);
+            const [devicesRes, alarmsRes, ordersRes, workflowsRes] = await Promise.all([
+                fetch(`${this.apiBase}/devices/`),
+                fetch(`${this.apiBase}/alarms/`),
+                fetch(`${this.apiBase}/work-orders/`),
+                fetch(`${this.apiBase}/workflow-executions?limit=20`)
+            ]);
+            const devicesData = await devicesRes.json();
             const alarmsData = await alarmsRes.json();
+            const ordersData = await ordersRes.json();
+            const workflowsData = await workflowsRes.json();
+            this.devices = devicesData.devices || [];
             this.alarms = alarmsData.alarms || [];
+            this.workOrders = ordersData.work_orders || [];
+            this.workflows = workflowsData.executions || [];
             
             this.render();
         } catch (error) {
@@ -46,6 +52,8 @@ class App {
     render() {
         this.renderDevices();
         this.renderAlarms();
+        this.renderWorkOrders();
+        this.renderWorkflows();
     }
 
     renderDevices() {
@@ -125,6 +133,41 @@ class App {
             clone.querySelector('.alarm-device').textContent = alarm.device_id;
             
             this.alarmsContainer.appendChild(clone);
+        });
+    }
+
+    renderWorkOrders() {
+        this.workOrdersContainer.innerHTML = '';
+        if (this.workOrders.length === 0) {
+            this.workOrdersContainer.innerHTML = '<div class="empty-state">暂无工单</div>';
+            return;
+        }
+        this.workOrders.slice(0, 10).forEach(order => {
+            const clone = this.recordTemplate.content.cloneNode(true);
+            clone.querySelector('.record-title').textContent = order.title;
+            clone.querySelector('.record-meta').textContent = `${order.device_id} · ${order.priority}`;
+            const status = clone.querySelector('.record-status');
+            status.textContent = order.status;
+            status.classList.add(order.status);
+            this.workOrdersContainer.appendChild(clone);
+        });
+    }
+
+    renderWorkflows() {
+        this.workflowsContainer.innerHTML = '';
+        this.workflowCountEl.textContent = this.workflows.length;
+        if (this.workflows.length === 0) {
+            this.workflowsContainer.innerHTML = '<div class="empty-state">暂无执行记录</div>';
+            return;
+        }
+        this.workflows.slice(0, 10).forEach(workflow => {
+            const clone = this.recordTemplate.content.cloneNode(true);
+            clone.querySelector('.record-title').textContent = workflow.trigger_ref || workflow.execution_id;
+            clone.querySelector('.record-meta').textContent = `${workflow.trigger_type} · ${workflow.platform}`;
+            const status = clone.querySelector('.record-status');
+            status.textContent = workflow.status;
+            status.classList.add(workflow.status);
+            this.workflowsContainer.appendChild(clone);
         });
     }
 }

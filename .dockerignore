@@ -1,0 +1,9 @@
+.git
+.idea
+.venv
+__pycache__
+*.pyc
+*.db
+.env
+docs/screenshots
+docs/demo

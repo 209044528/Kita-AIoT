@@ -1,307 +1,315 @@
 # Kita-AIoT：设备运维智能体工作流系统
 
-Kita-AIoT 是一个面向 AIoT 场景的设备运维智能体工作流 Demo。项目基于 Dify / 阿里百炼等 AI 应用开发平台，结合 FastAPI、MQTT、PostgreSQL、Redis、MinIO 等后端组件，模拟设备告警上报、知识库检索、故障原因分析、处理建议生成与工单流转的智能运维闭环。
+Kita-AIoT 是一个面向 AIoT 设备运维场景的智能体工作流 Demo。二阶段实现了从设备告警到智能分析、知识检索、工单生成和执行追踪的完整技术链路：
 
-本项目主要用于探索 AI Agent、RAG 知识库、工作流编排与 AIoT 设备运维场景的结合方式。
+> MQTT 告警 → FastAPI 工作流 → Dify RAG/Agent → PostgreSQL 持久化 → MinIO 文档 → 工单与日志
 
-第一阶段目标是先把“设备告警 -> 知识库问答 / 工具调用 -> 工单创建”的演示链路跑通，不引入 PostgreSQL、MinIO、n8n 等较重依赖。二、三阶段再逐步接入数据库、对象存储、更多平台和前端页面。
+## 二阶段完成情况
 
-## 项目背景
+| 目标 | 实现 |
+| --- | --- |
+| 一个 AI 平台完整接入 | Dify 作为主平台，提供 Workflow API 调用、RAG、5 个工具导入文件和完整配置步骤 |
+| 另一个平台基础接入 | 阿里云百炼通过 OpenAI 兼容接口完成连通测试 |
+| FastAPI 工具约 5 个 | 设备状态、历史告警、设备诊断、创建工单、查询设备文档 |
+| PostgreSQL | 设备、告警、工单、调用日志、工作流执行、文档元数据 |
+| MQTT 触发工作流 | FastAPI 启动 MQTT Consumer，告警到达后自动执行本地/Dify 工作流 |
+| MinIO | 上传设备文档或图片、查询元数据、生成临时下载地址 |
+| 可观测性 | HTTP 调用日志、工作流输入输出、状态和错误记录 |
+| README / 架构图 / 演示 | 本文、Mermaid 架构图、录制脚本与素材目录 |
 
-在 AIoT 设备运维场景中，设备数量多、告警类型复杂、处理流程依赖人工经验，常见问题包括：
+说明：Dify 和百炼真实调用需要你自己的平台地址与 API Key。未配置 Dify 时，系统会使用本地规则诊断，便于离线开发和测试。
 
-- 设备告警信息分散，人工排查效率较低。
-- 故障处理依赖说明书、SOP、历史工单等文档资料。
-- 运维人员需要频繁查询设备状态、历史告警和处理记录。
-- 告警分析、知识检索、工单创建等流程缺少自动化串联。
+## 系统架构
 
-因此，本项目尝试将大模型智能体引入设备运维流程，通过 Agent 工具调用、RAG 知识库检索和自动化工作流编排，实现从“设备告警”到“故障分析”和“工单生成”的自动化处理。
+```mermaid
+flowchart TB
+    Device["AIoT 设备 / 告警模拟器"] -->|"MQTT"| Broker["Mosquitto"]
+    Broker --> Consumer["FastAPI MQTT Consumer"]
+    Consumer --> Workflow["告警工作流引擎"]
+    Workflow -->|"Workflow API"| Dify["Dify + RAG"]
+    Dify -->|"5 个 HTTP 工具"| API["FastAPI Agent Tools"]
+    Bailian["阿里云百炼"] <-. "基础连通" .-> API
+    Web["运维监控页面"] --> API
+    API --> PostgreSQL[("PostgreSQL")]
+    Workflow --> PostgreSQL
+    API --> MinIO[("MinIO")]
+```
 
-## 当前阶段完成情况
-
-| 一阶段要求 | 当前状态 | 说明 |
-| --- | --- | --- |
-| Dify 搭一个知识库问答应用 | 已提供配置说明 | 见 `docs/dify_phase1_setup.md`，按步骤在 Dify 控制台创建知识库和 Chat/Agent 应用 |
-| 上传 3～5 份设备说明书 / SOP / FAQ 模拟文档 | 已完成 | 见 `docs/knowledge_base/`，共 5 份 Markdown 文档 |
-| FastAPI 写 3 个工具接口 | 已完成 | 设备状态、历史告警、创建工单；另提供一个诊断辅助接口 |
-| MQTT 用脚本模拟告警上报 | 已完成 | 见 `scripts/mqtt_alarm_simulator.py` |
-| README 写清楚架构、流程、截图 | 已更新 | 本 README 包含架构、流程、演示命令；Dify 截图保存位置见 `docs/screenshots/` |
+详细设计见 [docs/phase2_design.md](docs/phase2_design.md)。
 
 ## 核心功能
 
-### 设备运维智能体
+### 告警工作流
 
-基于 Dify 搭建设备运维知识库问答 / Agent 应用，围绕设备告警分析、知识库检索、处理建议生成和工单创建设计演示流程。
+MQTT Consumer 订阅 `aiot/device/alarm`。收到告警后：
 
-智能体支持：
+1. 创建工作流执行记录。
+2. 保存告警并更新设备状态。
+3. 查询最近告警并生成本地诊断。
+4. 配置 Dify 后调用 Dify Workflow API。
+5. `critical` 告警自动创建 P1 工单。
+6. 保存工作流输出、状态与错误。
 
-- 根据用户问题识别意图。
-- 自动调用设备状态查询工具。
-- 查询设备历史告警。
-- 检索设备知识库和历史工单。
-- 生成故障原因分析和结构化处理建议。
-- 在需要时创建运维工单。
+HTTP 告警上报接口使用同一条工作流，便于测试。
 
-### 企业知识库 RAG
+### 5 个 Agent 核心工具
 
-当前阶段提供 5 份模拟资料，可直接上传到 Dify 知识库：
-
-- 设备说明书。
-- 故障排查手册。
-- 运维 SOP。
-- 历史工单样例。
-- 常见问题 FAQ。
-
-### FastAPI 工具服务
-
-| 工具名称 | 接口 | 功能说明 |
+| 工具 | 接口 | 功能 |
 | --- | --- | --- |
-| `get_device_status` | `GET /api/v1/devices/{device_id}/status` | 根据设备 ID 查询在线状态、电量、温度、位置等信息 |
-| `get_recent_alarms` | `GET /api/v1/devices/{device_id}/alarms` | 查询设备最近告警记录 |
-| `create_work_order` | `POST /api/v1/work-orders` | 根据分析结果创建运维工单 |
-| `device_diagnosis` | `POST /api/v1/tools/device-diagnosis` | 演示用诊断辅助接口，汇总状态、告警和知识库式建议 |
+| `get_device_status` | `GET /api/v1/devices/{device_id}/status` | 查询设备状态 |
+| `get_recent_alarms` | `GET /api/v1/devices/{device_id}/alarms` | 查询最近告警 |
+| `diagnose_device` | `POST /api/v1/devices/diagnosis` | 状态、告警与规则式诊断 |
+| `create_work_order` | `POST /api/v1/work-orders/` | 创建运维工单 |
+| `list_device_documents` | `GET /api/v1/documents/` | 查询 MinIO 文档元数据 |
 
-## 技术栈
+Dify 可直接导入 [docs/dify_tools_openapi.yaml](docs/dify_tools_openapi.yaml)。
 
-| 类型 | 一阶段使用 | 后续规划 |
-| --- | --- | --- |
-| AI 应用平台 | Dify 配置说明 | 阿里百炼完整接入 |
-| 后端服务 | Python、FastAPI | 服务拆分、调用日志 |
-| 消息通信 | MQTT 模拟脚本 | MQTT 触发工作流 |
-| 数据库 | 内存模拟数据 | PostgreSQL |
-| 对象存储 | 暂不接入 | MinIO |
-| 自动化编排 | Dify 手动配置 | n8n Webhook / HTTP / MQTT |
+### 数据持久化
+
+二阶段使用 SQLAlchemy，正式环境连接 PostgreSQL。数据表：
+
+- `devices`
+- `alarms`
+- `work_orders`
+- `call_logs`
+- `workflow_executions`
+- `documents`
+
+本地未配置 PostgreSQL 时默认使用 `kita_aiot.db` SQLite 文件，接口行为一致。
+
+### MinIO 文档管理
+
+- 上传设备说明书、现场图片或维修附件。
+- 文档元数据写入数据库。
+- 文件对象存入 MinIO。
+- 下载时生成 1 小时有效的预签名 URL。
+
+### Web 运维看板
+
+访问首页可查看：
+
+- 设备状态、温度、电量和位置。
+- 实时告警。
+- 自动生成或人工创建的工单。
+- MQTT/HTTP 工作流执行记录。
+
+页面每 10 秒自动刷新。
 
 ## 项目结构
 
 ```text
 Kita-AIoT/
-├── app/
-│   ├── __init__.py
-│   ├── mqtt/
-│   │   └── simulator.py              # 兼容 README 原启动路径的包装脚本
-│   └── main.py                      # FastAPI 工具接口与一阶段内存数据
-├── docs/
-│   ├── dify_phase1_setup.md          # Dify 一阶段配置步骤
-│   ├── knowledge_base/               # Dify 知识库模拟文档
-│   ├── prompts/                      # Dify Prompt 模板
-│   └── screenshots/                  # Dify 配置和演示截图建议保存位置
-├── scripts/
-│   ├── __init__.py
-│   └── mqtt_alarm_simulator.py       # MQTT 告警模拟脚本
-├── .env.example
-├── requirements.txt
-└── README.md
+├─ app/
+│  ├─ api/routers/                # 设备、告警、工单、文档、运维接口
+│  ├─ core/                       # 配置、数据库、种子数据、序列化
+│  ├─ mqtt/consumer.py            # MQTT 告警消费者
+│  ├─ services/                   # 诊断、Dify/百炼、MinIO、工作流
+│  ├─ models.py                   # SQLAlchemy 数据模型
+│  └─ main.py                     # FastAPI 应用与调用日志中间件
+├─ deploy/mosquitto.conf
+├─ docs/
+│  ├─ dify_phase2_setup.md
+│  ├─ bailian_phase2_setup.md
+│  ├─ dify_tools_openapi.yaml
+│  ├─ phase2_design.md
+│  ├─ demo/
+│  └─ knowledge_base/
+├─ scripts/mqtt_alarm_simulator.py
+├─ web/
+├─ .env.example
+├─ Dockerfile
+├─ docker-compose.yml
+└─ requirements.txt
 ```
-
-## 一阶段架构
-
-```mermaid
-flowchart LR
-    device["设备告警模拟脚本"] -->|MQTT: aiot/device/alarm| broker["MQTT Broker"]
-    device -->|本地演示可选 HTTP POST| api["FastAPI 工具服务"]
-    dify["Dify 知识库问答应用"] --> kb["知识库文档"]
-    dify -->|HTTP 工具调用| api
-    api --> status["设备状态"]
-    api --> alarms["历史告警"]
-    api --> wo["创建工单"]
-    api --> diagnosis["诊断辅助"]
-```
-
-说明：
-
-- Dify 负责知识库问答、RAG 检索和 Agent 编排。
-- FastAPI 负责把设备状态、历史告警、创建工单封装成可调用工具。
-- MQTT 脚本负责生成模拟告警。第一阶段可只打印 / 发布 MQTT，也可以同时 POST 到 FastAPI 便于本地演示。
-- 当前数据使用内存模拟，重启服务后新创建工单和上报告警会丢失。
 
 ## 快速启动
 
-### 1. 安装依赖
+### 方式一：本地轻量运行
 
-Windows PowerShell：
+使用 Python 3.12：
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python -m pip install -r requirements.txt
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8001
 ```
 
-### 2. 启动 FastAPI
+默认使用 SQLite，不启动 MQTT Consumer 和 MinIO。
+
+访问：
+
+- 看板：<http://localhost:8001/>
+- Swagger：<http://localhost:8001/docs>
+- 健康检查：<http://localhost:8001/health>
+
+### 方式二：Docker Compose 二阶段完整环境
+
+复制配置：
 
 ```powershell
-.\.venv\Scripts\python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
+Copy-Item .env.example .env
 ```
 
-启动后打开：
-
-- API 文档：http://localhost:8001/docs
-- 健康检查：http://localhost:8001/health
-
-### 3. 调用三个智能体工具接口
-
-查询设备状态：
+在 `.env` 中按需填写 Dify 和百炼密钥，然后启动：
 
 ```powershell
-curl http://localhost:8001/api/v1/devices/device-001/status
+docker compose up -d --build
 ```
 
-查询历史告警：
+服务地址：
 
-```powershell
-curl "http://localhost:8001/api/v1/devices/device-001/alarms?limit=5"
+| 服务 | 地址 |
+| --- | --- |
+| Kita-AIoT | <http://localhost:8001> |
+| Swagger | <http://localhost:8001/docs> |
+| PostgreSQL | `localhost:5432` |
+| MQTT | `localhost:1883` |
+| MinIO API | `localhost:9000` |
+| MinIO Console | <http://localhost:9001> |
+
+MinIO 默认账号和密码均为 `minioadmin`，仅适合本地演示。
+
+## 环境配置
+
+主要配置见 `.env.example`：
+
+```env
+DATABASE_URL=postgresql+psycopg://kita:kita_password@localhost:5432/kita_aiot
+
+MQTT_ENABLED=true
+MQTT_HOST=localhost
+MQTT_PORT=1883
+MQTT_TOPIC=aiot/device/alarm
+
+MINIO_ENABLED=true
+MINIO_ENDPOINT=localhost:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=device-documents
+
+DIFY_API_BASE_URL=
+DIFY_API_KEY=
+DIFY_WORKFLOW_ENABLED=false
+
+BAILIAN_API_KEY=
+BAILIAN_MODEL=qwen-plus
 ```
 
-创建工单：
+## 使用示例
+
+### 1. 模拟 MQTT 告警
+
+完整 Docker 环境启动后：
 
 ```powershell
-curl.exe -X POST http://localhost:8001/api/v1/work-orders `
-  -H "Content-Type: application/json" `
-  -d '{
-    "device_id": "device-001",
-    "alarm_id": "alarm-001",
-    "title": "冷链温控网关高温告警处理",
-    "reason": "设备持续高温，可能存在散热受阻或环境温度异常。",
-    "suggestion": "检查散热口、风扇状态和冷库环境温度。",
-    "priority": "P2"
-  }'
+.\.venv\Scripts\python.exe scripts\mqtt_alarm_simulator.py `
+  --host localhost `
+  --port 1883 `
+  --topic aiot/device/alarm `
+  --count 3
 ```
 
-诊断辅助接口：
+### 2. 不使用 Broker 测试工作流
 
 ```powershell
-curl.exe -X POST http://localhost:8001/api/v1/tools/device-diagnosis `
-  -H "Content-Type: application/json" `
-  -d '{
-    "device_id": "device-001",
-    "question": "设备持续温度过高，应该如何处理？"
-  }'
-```
-
-## API 清单
-
-| 接口 | 方法 | 用途 |
-| --- | --- | --- |
-| `/health` | GET | 服务健康检查 |
-| `/api/v1/devices/{device_id}/status` | GET | 工具 1：查询设备状态 |
-| `/api/v1/devices/{device_id}/alarms` | GET | 工具 2：查询历史告警 |
-| `/api/v1/work-orders` | POST | 工具 3：创建工单 |
-| `/api/v1/work-orders` | GET | 查看当前内存中的工单 |
-| `/api/v1/tools/device-diagnosis` | POST | 诊断辅助接口，便于 Agent 演示 |
-| `/api/v1/alarms/report` | POST | 本地演示用：直接接收模拟告警 |
-
-内置设备：
-
-- `device-001`：冷链温控网关 A-01，高温告警样例。
-- `device-002`：产线振动传感器 B-12，振动告警样例。
-- `device-003`：边缘采集器 C-07，离线告警样例。
-
-## MQTT 告警模拟
-
-只打印模拟告警，不连接 MQTT Broker：
-
-```powershell
-.\.venv\Scripts\python scripts/mqtt_alarm_simulator.py --dry-run --count 3
-```
-
-也可以使用兼容路径：
-
-```powershell
-.\.venv\Scripts\python app/mqtt/simulator.py --dry-run --count 3
-```
-
-发布到本机 MQTT Broker：
-
-```powershell
-.\.venv\Scripts\python scripts/mqtt_alarm_simulator.py --host localhost --port 1883 --topic aiot/device/alarm --count 3
-```
-
-本地没有 MQTT Broker 时，也可以把模拟告警直接 POST 到 FastAPI，方便演示告警入库效果：
-
-```powershell
-.\.venv\Scripts\python scripts/mqtt_alarm_simulator.py `
+.\.venv\Scripts\python.exe scripts\mqtt_alarm_simulator.py `
   --dry-run `
   --count 1 `
   --post-url http://localhost:8001/api/v1/alarms/report
 ```
 
-示例 Payload：
+### 3. 查询工作流记录
 
-```json
-{
-  "device_id": "device-001",
-  "alarm_type": "temperature_high",
-  "level": "warning",
-  "message": "设备温度超过 80 摄氏度阈值",
-  "temperature": 82.6,
-  "timestamp": "2026-06-23T10:20:00+08:00"
-}
+```powershell
+curl.exe http://localhost:8001/api/v1/workflow-executions
 ```
 
-## Dify 一阶段配置
+### 4. 查询调用日志
 
-详细步骤见 `docs/dify_phase1_setup.md`。
-
-建议流程：
-
-1. 在 Dify 创建知识库，上传 `docs/knowledge_base/` 下 5 份文档。
-2. 创建 Chatflow 或 Agent 应用，系统 Prompt 使用 `docs/prompts/dify_phase1_prompt.md`。
-3. 配置三个 HTTP 工具：
-   - `get_device_status`: `GET /api/v1/devices/{device_id}/status`
-   - `get_recent_alarms`: `GET /api/v1/devices/{device_id}/alarms`
-   - `create_work_order`: `POST /api/v1/work-orders`
-   - 可选：`device_diagnosis`: `POST /api/v1/tools/device-diagnosis`
-4. 用以下问题测试：
-   - `device-001 温度高应该怎么处理？请查询设备状态和历史告警。`
-   - `device-003 离线超过 30 分钟，是否需要创建工单？`
-   - `温度超过 80 摄氏度时 SOP 怎么要求？`
-
-如果 Dify 运行在 Docker 容器内，工具 URL 中的 `localhost` 需要替换为宿主机 IP 或同一 Docker 网络中的服务名。
-
-## 演示流程
-
-```mermaid
-sequenceDiagram
-    participant User as 运维人员
-    participant Dify as Dify 智能体
-    participant KB as 知识库
-    participant API as FastAPI 工具服务
-
-    User->>Dify: device-001 温度高，怎么处理？
-    Dify->>API: 查询设备状态
-    API-->>Dify: 在线、温度 82.6、电量 78%
-    Dify->>API: 查询历史告警
-    API-->>Dify: temperature_high warning
-    Dify->>KB: 检索高温 SOP / FAQ / 手册
-    KB-->>Dify: 高温阈值、排查步骤、工单规则
-    Dify-->>User: 输出原因分析和处理建议
-    Dify->>API: 需要时创建工单
+```powershell
+curl.exe http://localhost:8001/api/v1/call-logs
 ```
 
-## 截图说明
+### 5. 上传设备文档到 MinIO
 
-Dify 控制台截图需要在本地完成配置后手动保存，建议放到 `docs/screenshots/`：
+```powershell
+curl.exe -X POST http://localhost:8001/api/v1/documents/ `
+  -F "device_id=device-001" `
+  -F "file=@docs/knowledge_base/device_manual.md"
+```
 
-- `dify_knowledge_base.png`：知识库文档列表。
-- `dify_tools.png`：三个 HTTP 工具配置。
-- `dify_chat_demo.png`：一次问答演示，包含引用来源和工具调用结果。
+### 6. 获取文档下载地址
 
-仓库当前已经保留 `docs/screenshots/.gitkeep`，方便后续提交截图。
+```powershell
+curl.exe http://localhost:8001/api/v1/documents/{document_id}/download-url
+```
 
-## 后续阶段规划
+### 7. 查看组件配置状态
 
-二阶段：
+```powershell
+curl.exe http://localhost:8001/api/v1/platforms/status
+```
 
-- Dify 或阿里百炼至少一个平台完整跑通，另一个平台做基础接入或截图。
-- FastAPI 工具接口扩展到 5 个左右。
-- 引入 PostgreSQL，设计设备表、告警表、工单表、调用日志表。
-- 引入 MinIO 存放设备文档或图片。
-- MQTT 告警触发工作流，增加调用日志和工作流执行记录。
-- README 增加架构图、演示视频或 GIF。
+### 8. 一键冒烟验收
 
-三阶段：
+```powershell
+.\.venv\Scripts\python.exe scripts\phase2_smoke_test.py
+```
 
-- Dify + 阿里百炼两个平台都能演示。
-- n8n 做 Webhook / HTTP / MQTT 触发流。
-- 增加简单前端页面，支持告警列表、工单列表、知识库问答。
-- 打通完整链路：设备告警 -> Agent 分析 -> RAG 检索 -> 生成工单。
-- 补充项目说明文档，专门讲技术选型、Prompt、RAG 优化和工具调用设计。
+## Dify 主平台
+
+完整配置说明见 [docs/dify_phase2_setup.md](docs/dify_phase2_setup.md)。
+
+关键步骤：
+
+1. 上传 `docs/knowledge_base/` 到 Dify 知识库。
+2. 导入 `docs/dify_tools_openapi.yaml`。
+3. 创建告警分析 Workflow。
+4. 配置 Workflow API 地址和 Key。
+5. 设置 `DIFY_WORKFLOW_ENABLED=true`。
+6. 发布 MQTT 告警，检查 Dify 与本地工作流记录。
+
+## 阿里云百炼基础接入
+
+配置说明见 [docs/bailian_phase2_setup.md](docs/bailian_phase2_setup.md)。
+
+填写 `BAILIAN_API_KEY` 后，可调用：
+
+```text
+POST /api/v1/platforms/bailian/test
+```
+
+## API 补充清单
+
+| Method | 路径 | 用途 |
+| --- | --- | --- |
+| `GET` | `/api/v1/devices/` | 查询全部设备 |
+| `GET` | `/api/v1/alarms/` | 查询全部告警 |
+| `POST` | `/api/v1/alarms/report` | HTTP 触发告警工作流 |
+| `GET` | `/api/v1/work-orders/` | 查询工单 |
+| `POST` | `/api/v1/documents/` | 上传 MinIO 文档 |
+| `GET` | `/api/v1/documents/{id}/download-url` | 获取临时下载地址 |
+| `GET` | `/api/v1/workflow-executions` | 查询工作流记录 |
+| `GET` | `/api/v1/call-logs` | 查询 API 调用日志 |
+| `GET` | `/api/v1/platforms/status` | 查询组件配置状态 |
+
+## 演示视频 / GIF
+
+录制分镜与命令见 [docs/demo/recording_script.md](docs/demo/recording_script.md)。
+
+建议提交以下素材：
+
+- `docs/demo/kita-aiot-phase2.mp4`
+- `docs/demo/kita-aiot-phase2.gif`
+- `docs/screenshots/phase2_dashboard.png`
+- Dify Workflow 运行详情截图
+- 百炼基础连通截图
+
+真实平台截图和视频必须在填入你自己的账号凭据后录制，并注意遮挡密钥。
+
+## 当前边界
+
+- SQLAlchemy 当前使用自动建表，生产环境建议引入 Alembic 管理迁移。
+- Dify 与百炼是否真实成功取决于外部平台地址、网络和有效 API Key。
+- critical 告警自动建单；warning 重复次数策略可在后续阶段继续细化。
+- MinIO 与 Mosquitto 的默认凭据/匿名访问仅用于本地演示。

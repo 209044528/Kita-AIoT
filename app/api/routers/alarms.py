@@ -1,37 +1,34 @@
-from fastapi import APIRouter, HTTPException
-from typing import Dict, Any
-from uuid import uuid4
+from typing import Any
 
-from app.core.database import DEVICES, ALARMS
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.core.serializers import model_to_dict
+from app.models import Alarm, Device
 from app.schemas.alarms import AlarmReport
-from app.core.utils import now_iso
+from app.services.workflow import run_alarm_workflow
 
 router = APIRouter(prefix="/alarms", tags=["alarms"])
 
+
 @router.post("/report", status_code=201)
-def report_alarm(payload: AlarmReport) -> Dict[str, Any]:
-    """Convenience endpoint for local MQTT-simulator demos without a subscriber."""
-    if payload.device_id not in DEVICES:
+def report_alarm(payload: AlarmReport, db: Session = Depends(get_db)) -> dict[str, Any]:
+    """Receive an alarm and run the same workflow used by the MQTT consumer."""
+    if not db.get(Device, payload.device_id):
         raise HTTPException(status_code=404, detail=f"Device {payload.device_id} not found")
-
-    alarm = {
-        "alarm_id": f"alarm-{uuid4().hex[:8]}",
-        "device_id": payload.device_id,
-        "alarm_type": payload.alarm_type,
-        "level": payload.level,
-        "message": payload.message,
-        "temperature": payload.temperature,
-        "created_at": payload.timestamp or now_iso(),
-        "raw_payload": payload.model_dump(),
+    execution = run_alarm_workflow(db, payload.model_dump(mode="json"), trigger_type="http")
+    if execution.status == "failed":
+        raise HTTPException(status_code=500, detail=execution.error_message)
+    return {
+        "status": "received",
+        "execution_id": execution.execution_id,
+        "result": execution.output_payload,
     }
-    ALARMS.insert(0, alarm)
 
-    if payload.temperature is not None:
-        DEVICES[payload.device_id]["temperature"] = payload.temperature
-    DEVICES[payload.device_id]["last_seen_at"] = now_iso()
-
-    return {"status": "received", "alarm": alarm}
 
 @router.get("/")
-def get_all_alarms() -> Dict[str, Any]:
-    return {"count": len(ALARMS), "alarms": ALARMS}
+def get_all_alarms(db: Session = Depends(get_db)) -> dict[str, Any]:
+    alarms = list(db.scalars(select(Alarm).order_by(Alarm.created_at.desc()).limit(100)))
+    return {"count": len(alarms), "alarms": [model_to_dict(item) for item in alarms]}
