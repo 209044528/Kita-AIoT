@@ -31,7 +31,7 @@ ALARM_TEMPLATES = [
 ]
 
 
-def build_payload() -> dict:
+def build_payload(platform: str = "auto") -> dict:
     template = random.choice(ALARM_TEMPLATES)
     low, high = template["temperature_range"]
     return {
@@ -41,6 +41,7 @@ def build_payload() -> dict:
         "message": template["message"],
         "temperature": round(random.uniform(low, high), 1),
         "timestamp": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
+        "platform": platform,
     }
 
 
@@ -77,6 +78,12 @@ def main() -> None:
     parser.add_argument("--interval", type=float, default=1.0, help="Seconds between messages")
     parser.add_argument("--dry-run", action="store_true", help="Print payload only")
     parser.add_argument(
+        "--platform",
+        choices=["auto", "dify", "bailian", "local"],
+        default="auto",
+        help="Agent platform used by the downstream workflow",
+    )
+    parser.add_argument(
         "--post-url",
         default="",
         help="Also POST payload to FastAPI, for example http://localhost:8001/api/v1/alarms/report",
@@ -84,7 +91,7 @@ def main() -> None:
     args = parser.parse_args()
 
     for index in range(args.count):
-        payload = build_payload()
+        payload = build_payload(args.platform)
         print(json.dumps({"topic": args.topic, "payload": payload}, ensure_ascii=False, indent=2))
 
         if not args.dry_run:

@@ -20,7 +20,7 @@ def main() -> None:
                 "device_id": "device-003",
                 "alarm_type": "device_offline",
                 "level": "critical",
-                "message": "二阶段自动验收：设备离线",
+                "message": "自动验收：设备离线",
                 "temperature": 29.0,
             },
         )

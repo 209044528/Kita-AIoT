@@ -1,0 +1,55 @@
+{
+  "name": "Kita-AIoT - HTTP 手动演示",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "手动触发",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {"id": "1", "name": "device_id", "value": "device-001", "type": "string"},
+            {"id": "2", "name": "alarm_type", "value": "temperature_high", "type": "string"},
+            {"id": "3", "name": "level", "value": "warning", "type": "string"},
+            {"id": "4", "name": "message", "value": "n8n HTTP 演示：冷链网关持续高温", "type": "string"},
+            {"id": "5", "name": "temperature", "value": 86.5, "type": "number"},
+            {"id": "6", "name": "platform", "value": "auto", "type": "string"}
+          ]
+        },
+        "options": {}
+      },
+      "id": "sample-alarm",
+      "name": "构造告警",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8001/api/v1/alarms/report",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {"timeout": 210000}
+      },
+      "id": "http-request",
+      "name": "HTTP 调用 Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 0]
+    }
+  ],
+  "connections": {
+    "手动触发": {"main": [[{"node": "构造告警", "type": "main", "index": 0}]]},
+    "构造告警": {"main": [[{"node": "HTTP 调用 Agent", "type": "main", "index": 0}]]}
+  },
+  "active": false,
+  "settings": {"executionOrder": "v1"},
+  "versionId": "05c85fd7-aa5a-4893-b0d4-a1f84bc08f62"
+}

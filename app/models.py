@@ -106,3 +106,15 @@ class Document(BaseModel):
     size: Mapped[int] = mapped_column(Integer)
     bucket: Mapped[str] = mapped_column(String(128))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class KnowledgeQuery(BaseModel):
+    __tablename__ = "knowledge_queries"
+
+    query_id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: new_id("qa"))
+    question: Mapped[str] = mapped_column(Text)
+    platform: Mapped[str] = mapped_column(String(32), default="local")
+    answer: Mapped[str] = mapped_column(Text)
+    references: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    raw_response: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)

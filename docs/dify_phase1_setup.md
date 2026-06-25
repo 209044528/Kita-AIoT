@@ -1,4 +1,4 @@
-# Dify 一阶段配置说明
+# Dify 配置说明
 
 ## 1. 创建知识库
 
@@ -32,7 +32,7 @@
 | `create_work_order` | POST | `http://localhost:8001/api/v1/work-orders/` |
 | `device_diagnosis` | POST | `http://localhost:8001/api/v1/devices/diagnosis` |
 
-前三个是第一阶段核心工具，`device_diagnosis` 是可选演示接口，用于快速展示“状态 + 告警 + 知识库式建议”的组合结果。
+前三个是核心工具，`device_diagnosis` 是可选演示接口，用于快速展示“状态 + 告警 + 知识库式建议”的组合结果。
 
 ## 4. 建议测试问题
 

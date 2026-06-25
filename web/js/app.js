@@ -7,6 +7,10 @@ class App {
         this.workflowsContainer = document.getElementById('workflows-container');
         this.onlineCountEl = document.getElementById('online-count');
         this.workflowCountEl = document.getElementById('workflow-count');
+        this.difyStatusEl = document.getElementById('dify-status');
+        this.bailianStatusEl = document.getElementById('bailian-status');
+        this.alarmForm = document.getElementById('alarm-form');
+        this.knowledgeForm = document.getElementById('knowledge-form');
         
         this.deviceTemplate = document.getElementById('device-card-template');
         this.alarmTemplate = document.getElementById('alarm-item-template');
@@ -21,6 +25,8 @@ class App {
     }
 
     async init() {
+        this.alarmForm.addEventListener('submit', event => this.runAlarmWorkflow(event));
+        this.knowledgeForm.addEventListener('submit', event => this.askKnowledge(event));
         await this.fetchData();
         // Set up polling every 10 seconds
         setInterval(() => this.fetchData(), 10000);
@@ -28,20 +34,23 @@ class App {
 
     async fetchData() {
         try {
-            const [devicesRes, alarmsRes, ordersRes, workflowsRes] = await Promise.all([
+            const [devicesRes, alarmsRes, ordersRes, workflowsRes, platformsRes] = await Promise.all([
                 fetch(`${this.apiBase}/devices/`),
                 fetch(`${this.apiBase}/alarms/`),
                 fetch(`${this.apiBase}/work-orders/`),
-                fetch(`${this.apiBase}/workflow-executions?limit=20`)
+                fetch(`${this.apiBase}/workflow-executions?limit=20`),
+                fetch(`${this.apiBase}/platforms/status`)
             ]);
             const devicesData = await devicesRes.json();
             const alarmsData = await alarmsRes.json();
             const ordersData = await ordersRes.json();
             const workflowsData = await workflowsRes.json();
+            const platformsData = await platformsRes.json();
             this.devices = devicesData.devices || [];
             this.alarms = alarmsData.alarms || [];
             this.workOrders = ordersData.work_orders || [];
             this.workflows = workflowsData.executions || [];
+            this.platforms = platformsData;
             
             this.render();
         } catch (error) {
@@ -54,6 +63,7 @@ class App {
         this.renderAlarms();
         this.renderWorkOrders();
         this.renderWorkflows();
+        this.renderPlatforms();
     }
 
     renderDevices() {
@@ -169,6 +179,98 @@ class App {
             status.classList.add(workflow.status);
             this.workflowsContainer.appendChild(clone);
         });
+    }
+
+    renderPlatforms() {
+        const setBadge = (element, name, configured) => {
+            element.textContent = `${name} ${configured ? '已连接' : '未配置'}`;
+            element.classList.toggle('connected', configured);
+        };
+        setBadge(this.difyStatusEl, 'Dify', Boolean(this.platforms?.dify?.configured));
+        setBadge(this.bailianStatusEl, '百炼', Boolean(this.platforms?.bailian?.configured));
+    }
+
+    async runAlarmWorkflow(event) {
+        event.preventDefault();
+        const result = document.getElementById('alarm-result');
+        const button = this.alarmForm.querySelector('button');
+        button.disabled = true;
+        result.textContent = 'Agent 正在分析，可能需要几十秒...';
+        const deviceId = document.getElementById('alarm-device').value;
+        const level = document.getElementById('alarm-level').value;
+        const typeMap = {
+            'device-001': 'temperature_high',
+            'device-002': 'vibration_high',
+            'device-003': 'device_offline'
+        };
+        try {
+            const response = await fetch(`${this.apiBase}/alarms/report`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    device_id: deviceId,
+                    alarm_type: typeMap[deviceId],
+                    level,
+                    message: document.getElementById('alarm-message').value,
+                    temperature: deviceId === 'device-001' ? 86.8 : null,
+                    platform: document.getElementById('alarm-platform').value
+                })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || '工作流执行失败');
+            const summary = {
+                execution_id: data.execution_id,
+                alarm_id: data.result?.alarm_id,
+                platform: data.result?.agent?.platform,
+                agent_analysis: data.result?.agent?.analysis,
+                rag_references: (data.result?.rag_references || []).map(item => `${item.title} / ${item.section}`),
+                work_order_id: data.result?.work_order_id
+            };
+            result.textContent = JSON.stringify(summary, null, 2);
+            await this.fetchData();
+        } catch (error) {
+            result.textContent = `执行失败：${error.message}`;
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    async askKnowledge(event) {
+        event.preventDefault();
+        const answer = document.getElementById('knowledge-answer');
+        const references = document.getElementById('knowledge-references');
+        const button = this.knowledgeForm.querySelector('button');
+        button.disabled = true;
+        answer.textContent = '正在检索知识库并生成回答...';
+        references.innerHTML = '';
+        try {
+            const response = await fetch(`${this.apiBase}/knowledge/ask`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    question: document.getElementById('knowledge-question').value,
+                    platform: document.getElementById('knowledge-platform').value,
+                    device_id: document.getElementById('knowledge-device').value || null
+                })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || '知识问答失败');
+            answer.textContent = `[${data.platform}] ${data.answer}`;
+            (data.references || []).forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'reference-card';
+                const title = document.createElement('strong');
+                title.textContent = `${item.title} / ${item.section}`;
+                const content = document.createElement('p');
+                content.textContent = item.content;
+                card.append(title, content);
+                references.appendChild(card);
+            });
+        } catch (error) {
+            answer.textContent = `回答失败：${error.message}`;
+        } finally {
+            button.disabled = false;
+        }
     }
 }
 

@@ -1,4 +1,4 @@
-# Kita-AIoT 二阶段设计
+# Kita-AIoT 设计
 
 ## 目标
 

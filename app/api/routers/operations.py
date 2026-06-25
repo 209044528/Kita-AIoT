@@ -49,6 +49,8 @@ def platform_status() -> dict[str, Any]:
             "configured": bool(settings.BAILIAN_API_KEY),
             "model": settings.BAILIAN_MODEL,
         },
+        "agent": {"default_platform": settings.AGENT_PLATFORM},
+        "n8n": {"configured": bool(settings.N8N_WEBHOOK_URL), "webhook_url": settings.N8N_WEBHOOK_URL},
         "mqtt": {"enabled": settings.MQTT_ENABLED, "topic": settings.MQTT_TOPIC},
         "minio": {"enabled": settings.MINIO_ENABLED, "bucket": settings.MINIO_BUCKET},
         "database": {"backend": settings.DATABASE_URL.split(":", 1)[0]},

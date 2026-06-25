@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Kita-AIoT Agent Tools
-  version: 0.3.0
+  version: 0.4.0
 servers:
   - url: http://host.docker.internal:8001/api/v1
 paths:
@@ -96,3 +96,21 @@ paths:
       responses:
         "200":
           description: 文档列表
+  /knowledge/search:
+    get:
+      operationId: search_maintenance_knowledge
+      summary: 检索设备说明书、SOP、FAQ 和历史工单
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: top_k
+          in: query
+          schema:
+            type: integer
+            default: 3
+      responses:
+        "200":
+          description: 带来源的知识片段

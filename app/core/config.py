@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     BAILIAN_API_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     BAILIAN_API_KEY: Optional[str] = None
     BAILIAN_MODEL: str = "qwen-plus"
+    BAILIAN_TIMEOUT_SECONDS: int = 120
+
+    AGENT_PLATFORM: str = "auto"
+    RAG_TOP_K: int = 3
+    KNOWLEDGE_BASE_DIR: str = "docs/knowledge_base"
+
+    N8N_WEBHOOK_URL: Optional[str] = None
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

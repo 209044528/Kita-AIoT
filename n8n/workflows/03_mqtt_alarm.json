@@ -1,0 +1,44 @@
+{
+  "id": "7w5CG1hYmyZfXlm5",
+  "name": "Kita-AIoT - MQTT 告警触发",
+  "nodes": [
+    {
+      "parameters": {
+        "topics": "aiot/device/alarm/n8n",
+        "options": {"jsonParseBody": true}
+      },
+      "id": "mqtt-trigger",
+      "name": "MQTT 告警",
+      "type": "n8n-nodes-base.mqttTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "credentials": {
+        "mqtt": {
+          "id": "kita-mqtt-local",
+          "name": "Kita MQTT Local"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8001/api/v1/alarms/report",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.message || $json) }}",
+        "options": {"timeout": 210000}
+      },
+      "id": "mqtt-http",
+      "name": "转发到 Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [280, 0]
+    }
+  ],
+  "connections": {
+    "MQTT 告警": {"main": [[{"node": "转发到 Agent", "type": "main", "index": 0}]]}
+  },
+  "active": false,
+  "settings": {"executionOrder": "v1"},
+  "versionId": "745c88c3-9b39-4ce7-996a-555a7fb6e561"
+}

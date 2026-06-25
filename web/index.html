@@ -22,6 +22,8 @@
                 <h1>Kita-AIoT <span class="highlight">Monitor</span></h1>
             </div>
             <div class="header-stats">
+                <div class="stat-badge platform-badge" id="dify-status">Dify --</div>
+                <div class="stat-badge platform-badge" id="bailian-status">百炼 --</div>
                 <div class="stat-badge">
                     <span class="stat-dot online"></span>
                     <span id="online-count">0</span> 在线设备
@@ -76,6 +78,77 @@
                 </div>
             </section>
         </main>
+
+        <section class="control-grid">
+            <div class="glass-panel agent-console">
+                <div class="section-header">
+                    <h2><span class="icon">🤖</span> 告警 → Agent → RAG → 工单</h2>
+                </div>
+                <form id="alarm-form" class="console-form">
+                    <div class="form-row">
+                        <label>设备
+                            <select id="alarm-device">
+                                <option value="device-001">device-001 冷链网关</option>
+                                <option value="device-002">device-002 振动传感器</option>
+                                <option value="device-003">device-003 边缘采集器</option>
+                            </select>
+                        </label>
+                        <label>平台
+                            <select id="alarm-platform">
+                                <option value="auto">自动选择</option>
+                                <option value="dify">Dify</option>
+                                <option value="bailian">阿里百炼</option>
+                                <option value="local">本地规则</option>
+                            </select>
+                        </label>
+                        <label>等级
+                            <select id="alarm-level">
+                                <option value="warning">warning</option>
+                                <option value="critical">critical</option>
+                                <option value="info">info</option>
+                            </select>
+                        </label>
+                    </div>
+                    <label>告警描述
+                        <textarea id="alarm-message" rows="3">冷链温控网关温度持续超过 80 摄氏度，请分析并判断是否创建工单。</textarea>
+                    </label>
+                    <button class="primary-btn" type="submit">运行完整链路</button>
+                </form>
+                <pre class="result-box" id="alarm-result">等待触发...</pre>
+            </div>
+
+            <div class="glass-panel knowledge-console">
+                <div class="section-header">
+                    <h2><span class="icon">📚</span> 知识库问答</h2>
+                </div>
+                <form id="knowledge-form" class="console-form">
+                    <div class="form-row">
+                        <label>平台
+                            <select id="knowledge-platform">
+                                <option value="auto">自动选择</option>
+                                <option value="dify">Dify</option>
+                                <option value="bailian">阿里百炼</option>
+                                <option value="local">本地 RAG</option>
+                            </select>
+                        </label>
+                        <label>设备上下文
+                            <select id="knowledge-device">
+                                <option value="">无</option>
+                                <option value="device-001">device-001</option>
+                                <option value="device-002">device-002</option>
+                                <option value="device-003">device-003</option>
+                            </select>
+                        </label>
+                    </div>
+                    <label>问题
+                        <textarea id="knowledge-question" rows="3">温度超过 80 摄氏度时，SOP 要求如何处理？</textarea>
+                    </label>
+                    <button class="primary-btn" type="submit">检索并回答</button>
+                </form>
+                <div class="answer-box" id="knowledge-answer">等待提问...</div>
+                <div class="reference-list" id="knowledge-references"></div>
+            </div>
+        </section>
     </div>
 
     <!-- Templates for JavaScript cloning -->

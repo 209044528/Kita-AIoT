@@ -82,26 +82,38 @@ def call_dify_workflow(inputs: dict[str, Any], user: str = "kita-aiot") -> dict[
         raise
 
 
-def call_bailian(message: str) -> dict[str, Any]:
+def call_bailian_chat(
+    messages: list[dict[str, str]],
+    response_format: dict[str, str] | None = None,
+) -> dict[str, Any]:
     if not settings.BAILIAN_API_KEY:
         raise RuntimeError("阿里百炼 API Key 未配置")
 
     url = f"{settings.BAILIAN_API_BASE_URL.rstrip('/')}/chat/completions"
     started = perf_counter()
+    payload: dict[str, Any] = {
+        "model": settings.BAILIAN_MODEL,
+        "messages": messages,
+        "temperature": 0.2,
+    }
+    if response_format:
+        payload["response_format"] = response_format
     try:
         response = httpx.post(
             url,
             headers={"Authorization": f"Bearer {settings.BAILIAN_API_KEY}"},
-            json={
-                "model": settings.BAILIAN_MODEL,
-                "messages": [{"role": "user", "content": message}],
-            },
-            timeout=60,
+            json=payload,
+            timeout=settings.BAILIAN_TIMEOUT_SECONDS,
         )
-        response.raise_for_status()
+        if response.is_error:
+            raise RuntimeError(f"百炼 API {response.status_code}: {response.text[:1000]}")
         _write_call_log("bailian", url, response.status_code, started)
         return response.json()
     except Exception as exc:
-        status_code = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else 502
+        status_code = response.status_code if "response" in locals() else 502
         _write_call_log("bailian", url, status_code, started, str(exc))
         raise
+
+
+def call_bailian(message: str) -> dict[str, Any]:
+    return call_bailian_chat([{"role": "user", "content": message}])

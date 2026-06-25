@@ -56,6 +56,10 @@ services:
       BAILIAN_API_BASE_URL: ${BAILIAN_API_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
       BAILIAN_API_KEY: ${BAILIAN_API_KEY:-}
       BAILIAN_MODEL: ${BAILIAN_MODEL:-qwen-plus}
+      BAILIAN_TIMEOUT_SECONDS: ${BAILIAN_TIMEOUT_SECONDS:-120}
+      AGENT_PLATFORM: ${AGENT_PLATFORM:-auto}
+      RAG_TOP_K: ${RAG_TOP_K:-3}
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://localhost:5678/webhook/kita-aiot/alarm}
     ports:
       - "8001:8001"
     depends_on:
@@ -71,6 +75,31 @@ services:
       timeout: 5s
       retries: 5
 
+  n8n:
+    image: n8nio/n8n:latest
+    environment:
+      N8N_HOST: localhost
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: http
+      N8N_SECURE_COOKIE: "false"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      GENERIC_TIMEZONE: Asia/Shanghai
+      TZ: Asia/Shanghai
+      WEBHOOK_URL: http://localhost:5678/
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n/workflows:/workflows:ro
+      - ./n8n/credentials:/credentials:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
+
 volumes:
   postgres_data:
   minio_data:
+  n8n_data:

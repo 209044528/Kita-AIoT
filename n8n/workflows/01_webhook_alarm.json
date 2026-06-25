@@ -1,0 +1,53 @@
+{
+  "name": "Kita-AIoT - Webhook 告警闭环",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "kita-aiot/alarm",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook 告警",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "kita-aiot-alarm"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8001/api/v1/alarms/report",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body || $json) }}",
+        "options": {"timeout": 210000}
+      },
+      "id": "call-api",
+      "name": "调用 Agent 工作流",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "返回执行结果",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [520, 0]
+    }
+  ],
+  "connections": {
+    "Webhook 告警": {"main": [[{"node": "调用 Agent 工作流", "type": "main", "index": 0}]]},
+    "调用 Agent 工作流": {"main": [[{"node": "返回执行结果", "type": "main", "index": 0}]]}
+  },
+  "active": false,
+  "settings": {"executionOrder": "v1"},
+  "versionId": "9cf202ee-ff97-4c73-834d-9be1f81a0b10"
+}

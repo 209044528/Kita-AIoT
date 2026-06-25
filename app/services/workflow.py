@@ -4,17 +4,55 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.core.serializers import model_to_dict
 from app.models import Alarm, Device, WorkflowExecution, WorkOrder
+from app.services.agent import analyze_alarm, resolve_platform
 from app.services.diagnosis import build_diagnosis
-from app.services.platforms import call_dify_workflow
+from app.services.rag import retrieve
+
+
+def _should_create_order(
+    alarm: Alarm,
+    recent: list[Alarm],
+    platform_analysis: dict[str, Any],
+) -> tuple[bool, str]:
+    if alarm.level == "critical":
+        return True, "P1"
+    analysis = platform_analysis.get("analysis", {})
+    if isinstance(analysis, dict) and analysis.get("should_create_work_order") is True:
+        return True, str(analysis.get("priority") or "P2")
+    same_warning_count = sum(
+        1
+        for item in recent
+        if item.alarm_type == alarm.alarm_type and item.level == "warning"
+    )
+    if same_warning_count >= 3:
+        return True, "P2"
+    return False, "P2"
+
+
+def _work_order_text(
+    diagnosis: dict[str, Any],
+    platform_analysis: dict[str, Any],
+) -> tuple[str, str]:
+    analysis = platform_analysis.get("analysis", {})
+    if not isinstance(analysis, dict):
+        return diagnosis["analysis"], "；".join(diagnosis["suggestion"])
+    causes = analysis.get("possible_causes")
+    actions = analysis.get("actions")
+    reason = analysis.get("summary") or diagnosis["analysis"]
+    if causes:
+        reason = f"{reason}；可能原因：{'；'.join(map(str, causes))}"
+    suggestion = "；".join(map(str, actions)) if actions else "；".join(diagnosis["suggestion"])
+    return str(reason), suggestion
 
 
 def run_alarm_workflow(db: Session, payload: dict[str, Any], trigger_type: str) -> WorkflowExecution:
+    requested_platform = str(payload.get("platform") or "auto")
+    selected_platform = resolve_platform(requested_platform)
     execution = WorkflowExecution(
         trigger_type=trigger_type,
-        platform="dify" if settings.DIFY_WORKFLOW_ENABLED else "local",
+        platform=selected_platform,
         status="running",
         input_payload=payload,
     )
@@ -50,35 +88,31 @@ def run_alarm_workflow(db: Session, payload: dict[str, Any], trigger_type: str) 
                 select(Alarm)
                 .where(Alarm.device_id == device.device_id)
                 .order_by(Alarm.created_at.desc())
-                .limit(5)
+                .limit(10)
             )
         )
         diagnosis = build_diagnosis(device, recent, alarm.message)
-        platform_output: dict[str, Any] | None = None
+        references = retrieve(f"{alarm.alarm_type} {alarm.message} {device.name}")
+        platform_result = analyze_alarm(
+            selected_platform,
+            model_to_dict(device),
+            [model_to_dict(item) for item in recent],
+            model_to_dict(alarm),
+            diagnosis,
+            references,
+        )
 
-        if settings.DIFY_WORKFLOW_ENABLED:
-            platform_output = call_dify_workflow(
-                {
-                    "device_id": device.device_id,
-                    "alarm_id": alarm.alarm_id,
-                    "alarm_type": alarm.alarm_type,
-                    "alarm_level": alarm.level,
-                    "alarm_message": alarm.message,
-                    "device_status": model_to_dict(device),
-                    "local_diagnosis": diagnosis,
-                },
-                user=f"mqtt:{device.device_id}",
-            )
-
+        create_order, priority = _should_create_order(alarm, recent, platform_result)
         work_order_id = None
-        if alarm.level == "critical":
+        if create_order:
+            reason, suggestion = _work_order_text(diagnosis, platform_result)
             order = WorkOrder(
                 device_id=device.device_id,
                 alarm_id=alarm.alarm_id,
                 title=f"{device.name} {alarm.message}",
-                reason=diagnosis["analysis"],
-                suggestion="；".join(diagnosis["suggestion"]),
-                priority="P1",
+                reason=reason,
+                suggestion=suggestion,
+                priority=priority,
                 status="created",
             )
             db.add(order)
@@ -87,12 +121,14 @@ def run_alarm_workflow(db: Session, payload: dict[str, Any], trigger_type: str) 
             work_order_id = order.work_order_id
 
         execution.trigger_ref = alarm.alarm_id
+        execution.platform = platform_result["platform"]
         execution.status = "succeeded"
         execution.output_payload = {
             "alarm_id": alarm.alarm_id,
             "diagnosis": diagnosis,
+            "rag_references": references,
+            "agent": platform_result,
             "work_order_id": work_order_id,
-            "platform_output": platform_output,
         }
         execution.finished_at = datetime.now(timezone.utc)
         db.commit()

@@ -1,6 +1,6 @@
-# Dify 二阶段完整接入
+# Dify 完整接入
 
-二阶段以 Dify Workflow 为主平台。FastAPI 提供工具和 MQTT 触发入口，Dify 负责大模型分析与知识库检索。
+以 Dify Workflow 为主平台。FastAPI 提供工具和 MQTT 触发入口，Dify 负责大模型分析与知识库检索。
 
 ## 1. 创建知识库
 

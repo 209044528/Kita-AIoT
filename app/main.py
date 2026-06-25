@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     description="AIoT device operations Agent tools, workflow tracking, MQTT and MinIO integration.",
-    version="0.3.0",
+    version="0.4.0",
     lifespan=lifespan,
 )
 
@@ -85,7 +85,7 @@ async def persist_call_log(request, call_next):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": settings.APP_NAME, "version": "0.3.0"}
+    return {"status": "ok", "service": settings.APP_NAME, "version": "0.4.0"}
 
 WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
 os.makedirs(WEB_DIR, exist_ok=True)
